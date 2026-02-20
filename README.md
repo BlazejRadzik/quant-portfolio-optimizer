@@ -14,3 +14,5 @@ Głównym celem modelu jest znalezienie wag portfela, które maksymalizują **Ws
 ## Technologia
 * **Język:** Python 3.x
 * **Biblioteki:** `PyPortfolioOpt`, `pandas`, `yfinance`
+
+<img width="729" height="334" alt="image" src="https://github.com/user-attachments/assets/5c28ac23-7212-4f98-8a99-caa09376ecbe" />
