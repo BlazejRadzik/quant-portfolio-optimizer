@@ -9,7 +9,7 @@ tickers = ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA"]
 
 # Pobieranie danych historycznych
 print("Pobieranie danych...")
-data = yf.download(tickers, start="2022-01-01", end="2025-01-01")['Adj Close']
+data = yf.download(tickers, start="2022-01-01", end="2025-01-01", auto_adjust=True)['Close']
 
 # Obliczenia 
 # Średni historyczny zwrot
