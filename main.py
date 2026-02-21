@@ -1,3 +1,4 @@
+import streamlit as st
 import yfinance as yf
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -43,3 +44,34 @@ if sizes:
     print("\n[SUKCES] Wykres został zapisany jako portfolio_plot.png")
 else:
     print("\n[BŁĄD] Brak danych do wygenerowania wykresu.")
+st.set_page_config(page_title="Quant Optimizer", layout="wide")
+
+# Bok panelu
+st.sidebar.header("⚙️ Konfiguracja Portfela")
+tickers_input = st.sidebar.text_input("Wpisz tickery (rozdziel przecinkiem)", "AAPL, PKO.WA, MSFT")
+start_date = st.sidebar.date_input("Data początkowa", value=pd.to_datetime("2022-01-01"))
+risk_free_rate = st.sidebar.slider("Stopa wolna od ryzyka (%)", 0.0, 10.0, 2.0) / 100
+
+# Panel
+st.title("📊 Quant Portfolio Optimizer")
+st.markdown(f"Optymalizacja portfela dla: **{tickers_input}**")
+
+col1, col2 = st.columns([1, 1])
+
+with col1:
+    st.subheader("📈 Wyniki Optymalizacji")
+    # wywołaj funkcję optymalizującą i pobierz wagi
+    # Przykład wyświetlania metryk na bazie Twoich wyników:
+    st.metric("Oczekiwany zwrot", "15.7%") 
+    st.metric("Sharpe Ratio", "0.66")
+    st.metric("Roczna zmienność", "23.8%")
+
+with col2:
+    st.subheader("🥧 Alokacja Aktywów")
+    # wykres kołowy (st.plotly_chart)
+    st.info("Tutaj pojawi się wykres kołowy wag portfela.")
+
+st.divider()
+st.subheader("📉 Backtesting (Wyniki Historyczne)")
+# wykres liniowy skumulowanych zwrotów
+st.line_chart([1, 1.1, 1.05, 1.2, 1.3]) # Placeholder
