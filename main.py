@@ -5,14 +5,38 @@ import matplotlib.pyplot as plt
 from pypfopt import EfficientFrontier, risk_models, expected_returns
 import plotly.express as px
 
+# --- 1. FUNKCJE POMOCNICZE (Muszą być na początku, aby uniknąć błędów) ---
+
+@st.cache_data
+def get_sp500_tickers():
+    """Dynamicznie pobiera listę spółek S&P 500 z Wikipedii."""
+    url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
+    table = pd.read_html(url)
+    return table[0]['Symbol'].tolist()
+
+def calculate_var(data, weights, alpha=0.05):
+    """Oblicza Historyczny Value at Risk (VaR) na poziomie 95%."""
+    # zwroty dzienne
+    portfolio_returns = (data.pct_change().dropna() * pd.Series(weights)).sum(axis=1)
+    # percentyle 95 najgorszych
+    var_95 = portfolio_returns.quantile(alpha)
+    return var_95
+
+# --- 2. KONFIGURACJA STRONY ---
+
 st.set_page_config(page_title="Pro Quant Terminal", layout="wide")
 
 # aktywa
 GPW = ["PKO.WA", "PKN.WA", "PZU.WA", "KGH.WA", "DNP.WA", "ALE.WA", "LPP.WA", "CDR.WA", "PEO.WA", "SPL.WA"]
-SP500_TOP = ["AAPL", "MSFT", "AMZN", "NVDA", "GOOGL", "META", "BRK-B", "LLY", "AVGO", "JPM", "TSLA"]
+try:
+    SP500_DYNAMIC = get_sp500_tickers()
+except:
+    SP500_DYNAMIC = ["AAPL", "MSFT", "AMZN", "NVDA", "GOOGL"] # Fallback
+
 ETFS = ["SPY", "QQQ", "GLD", "VGT", "EEM"]
 
-ALL_OPTIONS = sorted(list(set(GPW + SP500_TOP + ETFS)))
+# Łączymy listy w jedną bazę do wyszukiwania
+ALL_OPTIONS = sorted(list(set(GPW + SP500_DYNAMIC + ETFS)))
 
 # bok
 st.sidebar.header("🕹️ Panel Sterowania")
@@ -67,30 +91,35 @@ if calculate and selected_assets:
             
             cleaned_weights = ef.clean_weights()
             perf = ef.portfolio_performance(verbose=False, risk_free_rate=risk_free_rate)
+            
+            # --- DODANE: Obliczenie VaR (Tylko gdy mamy dane) ---
+            var_value = calculate_var(data, cleaned_weights)
 
             # wizualizacja 
-            c1, c2 = st.columns([1, 2])
+            c1, c2, c3 = st.columns([1, 1, 2]) # Dodano kolumnę c3 dla lepszego rozkładu
             
             with c1:
-                st.subheader("📋 Statystyki Strategii")
+                st.subheader("📋 Statystyki")
                 st.metric("Oczekiwany Zwrot", f"{perf[0]*100:.2f}%")
                 st.metric("Zmienność (Ryzyko)", f"{perf[1]*100:.2f}%")
-                st.metric("Sharpe Ratio", f"{perf[2]:.2f}")
                 
-                # Tabela wag
+            with c2:
+                st.subheader("🛡️ Risk Management")
+                st.metric("Sharpe Ratio", f"{perf[2]:.2f}")
+                st.metric("Daily VaR (95%)", f"{var_value:.2%}", help="Maksymalna oczekiwana strata dzienna z 95% prawdopodobieństwem.")
+                
+            with c3:
+                st.subheader("🍩 Struktura Portfela")
                 df_weights = pd.DataFrame.from_dict(cleaned_weights, orient='index', columns=['Waga'])
                 df_weights = df_weights[df_weights['Waga'] > 0]
-                st.dataframe(df_weights.style.format("{:.2%}"), use_container_width=True)
-
-            with c2:
-                st.subheader("🍩 Struktura Portfela")
+                
                 fig = px.pie(
                     names=df_weights.index, 
                     values=df_weights['Waga'],
                     hole=0.4,
                     color_discrete_sequence=px.colors.sequential.RdBu
                 )
-                fig.update_layout(template="plotly_dark", margin=dict(l=20, r=20, t=20, b=20))
+                fig.update_layout(template="plotly_dark", margin=dict(l=10, r=10, t=10, b=10))
                 st.plotly_chart(fig, use_container_width=True)
 
             # backtesting
@@ -105,15 +134,3 @@ if calculate and selected_assets:
             st.error(f"Błąd modelu: {e}. Spróbuj dodać więcej danych lub zmienić datę.")
 else:
     st.info("Dodaj aktywa i kliknij przycisk powyżej, aby zobaczyć analizę.")
-# risk cal
-def calculate_var(data, weights, alpha=0.05):
-    """Oblicza Historyczny Value at Risk (VaR) na poziomie 95%."""
-    # zwroty dzienne
-    portfolio_returns = (data.pct_change().dropna() * pd.Series(weights)).sum(axis=1)
-    
-    # percentyle 95 najgorszych
-    var_95 = portfolio_returns.quantile(alpha)
-    return var_95
-
-# wew blok odczyt
-var_value = calculate_var(data, cleaned_weights)
