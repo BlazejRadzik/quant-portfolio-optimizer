@@ -2,88 +2,106 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import matplotlib.pyplot as plt
-from pypfopt.efficient_frontier import EfficientFrontier
-from pypfopt import risk_models, expected_returns
+from pypfopt import EfficientFrontier, risk_models, expected_returns
+import plotly.express as px
 
-# 1. Konfiguracja strony musi być na samym początku
-st.set_page_config(page_title="Quant Optimizer", layout="wide")
+st.set_page_config(page_title="Pro Quant Terminal", layout="wide")
 
-# --- SIDEBAR (PANEL BOCZNY) ---
-st.sidebar.header("⚙️ Konfiguracja Portfela")
-# Zamieniamy input na listę
-tickers_raw = st.sidebar.text_input("Wpisz tickery (rozdziel przecinkiem)", "AAPL, MSFT, GOOGL, PKO.WA, KGH.WA")
-tickers = [t.strip().upper() for t in tickers_raw.split(",")]
+# --- LISTY AKTYWÓW ---
+GPW = ["PKO.WA", "PKN.WA", "PZU.WA", "KGH.WA", "DNP.WA", "ALE.WA", "LPP.WA", "CDR.WA", "PEO.WA", "SPL.WA"]
+SP500_TOP = ["AAPL", "MSFT", "AMZN", "NVDA", "GOOGL", "META", "BRK-B", "LLY", "AVGO", "JPM", "TSLA"]
+ETFS = ["SPY", "QQQ", "GLD", "VGT", "EEM"]
 
-start_date = st.sidebar.date_input("Data początkowa", value=pd.to_datetime("2022-01-01"))
+ALL_OPTIONS = sorted(list(set(GPW + SP500_TOP + ETFS)))
+
+# --- SIDEBAR ---
+st.sidebar.header("🕹️ Panel Sterowania")
+
+# 1. Wybór celu optymalizacji
+st.sidebar.subheader("Cel Inwestycyjny")
+strategy = st.sidebar.radio(
+    "Wybierz strategię:",
+    ["Max Sharpe Ratio", "Minimum Volatility", "Target Return"]
+)
+
+target_return = 0
+if strategy == "Target Return":
+    target_return = st.sidebar.slider("Oczekiwany zwrot (%)", 5, 50, 15) / 100
+
+# 2. Parametry techniczne
+st.sidebar.divider()
+start_date = st.sidebar.date_input("Data początkowa", value=pd.to_datetime("2021-01-01"))
 risk_free_rate = st.sidebar.slider("Stopa wolna od ryzyka (%)", 0.0, 10.0, 2.0) / 100
 
-# --- LOGIKA OBLICZENIOWA ---
-@st.cache_data # Cache, żeby nie pobierać danych przy każdej zmianie suwaka
-def get_data(tickers, start):
-    data = yf.download(tickers, start=start)['Close']
-    return data
+# --- PANEL GŁÓWNY ---
+st.title("🏦 Pro Quant Asset Management Terminal")
 
-try:
-    data = get_data(tickers, start_date)
-    
-    # Obliczenia optymalizacji
-    mu = expected_returns.mean_historical_return(data)
-    S = risk_models.sample_cov(data)
-    ef = EfficientFrontier(mu, S)
-    
-    # Używamy stopy wolnej od ryzyka z suwaka
-    weights = ef.max_sharpe(risk_free_rate=risk_free_rate)
-    cleaned_weights = ef.clean_weights()
-    perf = ef.portfolio_performance(verbose=False, risk_free_rate=risk_free_rate)
+# Wybór akcji - Interaktywna lista na górze
+selected_assets = st.multiselect(
+    "Wybierz akcje do portfela (możesz wpisać własne tickery, np. TSLA):",
+    options=ALL_OPTIONS,
+    default=["PKO.WA", "AAPL", "MSFT", "CDR.WA"]
+)
 
-    # --- PANEL GŁÓWNY ---
-    st.title("📊 Quant Portfolio Optimizer")
-    st.markdown(f"Analiza dla: **{', '.join(tickers)}**")
+# Przycisk startu
+calculate = st.button("🚀 OBLICZ OPTYMALNY PORTFEL", use_container_width=True)
 
-    col1, col2 = st.columns([1, 1])
+if calculate and selected_assets:
+    with st.spinner('Pobieranie danych rynkowych...'):
+        try:
+            # Pobieranie danych
+            data = yf.download(selected_assets, start=start_date)['Close']
+            
+            # Obliczenia
+            mu = expected_returns.mean_historical_return(data)
+            S = risk_models.sample_cov(data)
+            ef = EfficientFrontier(mu, S)
+            
+            # Logika wyboru strategii
+            if strategy == "Max Sharpe Ratio":
+                weights = ef.max_sharpe(risk_free_rate=risk_free_rate)
+            elif strategy == "Minimum Volatility":
+                weights = ef.min_volatility()
+            else:
+                weights = ef.efficient_return(target_return=target_return)
+            
+            cleaned_weights = ef.clean_weights()
+            perf = ef.portfolio_performance(verbose=False, risk_free_rate=risk_free_rate)
 
-    with col1:
-        st.subheader("📈 Wyniki Optymalizacji")
-        st.metric("Oczekiwany roczny zwrot", f"{perf[0]*100:.2f}%")
-        st.metric("Sharpe Ratio", f"{perf[2]:.2f}")
-        st.metric("Roczna zmienność (Ryzyko)", f"{perf[1]*100:.2f}%")
+            # --- WIZUALIZACJA ---
+            c1, c2 = st.columns([1, 2])
+            
+            with c1:
+                st.subheader("📋 Statystyki Strategii")
+                st.metric("Oczekiwany Zwrot", f"{perf[0]*100:.2f}%")
+                st.metric("Zmienność (Ryzyko)", f"{perf[1]*100:.2f}%")
+                st.metric("Sharpe Ratio", f"{perf[2]:.2f}")
+                
+                # Tabela wag
+                df_weights = pd.DataFrame.from_dict(cleaned_weights, orient='index', columns=['Waga'])
+                df_weights = df_weights[df_weights['Waga'] > 0]
+                st.dataframe(df_weights.style.format("{:.2%}"), use_container_width=True)
 
-    with col2:
-        st.subheader("🥧 Alokacja Aktywów")
-        labels = [t for t, w in cleaned_weights.items() if w > 0]
-        sizes = [w for t, w in cleaned_weights.items() if w > 0]
-        
-        if sizes:
-            fig, ax = plt.subplots(figsize=(6, 4))
-            # Ustawienie ciemnego tła wykresu, by pasowało do stylu "Quant"
-            fig.patch.set_facecolor('#0e1117')
-            ax.set_facecolor('#0e1117')
-            wedges, texts, autotexts = ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=140, textprops={'color':"w"})
-            plt.setp(autotexts, size=8, weight="bold")
-            st.pyplot(fig)
-        else:
-            st.error("Model nie mógł wyznaczyć wag. Spróbuj zmienić datę lub tickery.")
+            with c2:
+                st.subheader("🍩 Struktura Portfela")
+                fig = px.pie(
+                    names=df_weights.index, 
+                    values=df_weights['Waga'],
+                    hole=0.4,
+                    color_discrete_sequence=px.colors.sequential.RdBu
+                )
+                fig.update_layout(template="plotly_dark", margin=dict(l=20, r=20, t=20, b=20))
+                st.plotly_chart(fig, use_container_width=True)
 
-    st.divider()
+            # Backtesting
+            st.divider()
+            st.subheader("📉 Historia wzrostu (Backtest)")
+            returns = data.pct_change().dropna()
+            port_ret = (returns * pd.Series(cleaned_weights)).sum(axis=1)
+            cum_ret = (1 + port_ret).cumprod()
+            st.line_chart(cum_ret)
 
-    # --- KROK PO KROKU: BACKTESTING ---
-    st.subheader("📉 Backtesting (Skumulowana Stopa Zwrotu)")
-    
-    # 1. Obliczamy dzienne stopy zwrotu akcji
-    returns = data.pct_change()
-    
-    # 2. Mnożymy zwroty przez wyliczone wagi portfela
-    portfolio_weights = pd.Series(cleaned_weights)
-    weighted_returns = returns.mul(portfolio_weights, axis=1).sum(axis=1)
-    
-    # 3. Obliczamy skumulowany zwrot (kapitał początkowy = 1.0)
-    cumulative_returns = (1 + weighted_returns).cumprod()
-    
-    # Wyświetlamy wykres interaktywny Streamlit
-    st.line_chart(cumulative_returns)
-    
-    st.caption("Wykres pokazuje, jak zmieniałaby się wartość 1 PLN zainwestowanego w ten portfel w wybranym okresie.")
-
-except Exception as e:
-    st.error(f"Wystąpił błąd podczas pobierania danych: {e}")
-    st.info("Upewnij się, że wpisane tickery są poprawne (np. AAPL dla Apple, PKO.WA dla PKO BP).")
+        except Exception as e:
+            st.error(f"Błąd modelu: {e}. Spróbuj dodać więcej danych lub zmienić datę.")
+else:
+    st.info("Dodaj aktywa i kliknij przycisk powyżej, aby zobaczyć analizę.")
