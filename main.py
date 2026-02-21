@@ -105,3 +105,15 @@ if calculate and selected_assets:
             st.error(f"Błąd modelu: {e}. Spróbuj dodać więcej danych lub zmienić datę.")
 else:
     st.info("Dodaj aktywa i kliknij przycisk powyżej, aby zobaczyć analizę.")
+# risk cal
+def calculate_var(data, weights, alpha=0.05):
+    """Oblicza Historyczny Value at Risk (VaR) na poziomie 95%."""
+    # zwroty dzienne
+    portfolio_returns = (data.pct_change().dropna() * pd.Series(weights)).sum(axis=1)
+    
+    # percentyle 95 najgorszych
+    var_95 = portfolio_returns.quantile(alpha)
+    return var_95
+
+# wew blok odczyt
+var_value = calculate_var(data, cleaned_weights)
