@@ -1,52 +1,107 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import plotly.express as px
+import matplotlib.pyplot as plt
 from pypfopt import EfficientFrontier, risk_models, expected_returns
+import plotly.express as px
 
-st.set_page_config(page_title="Quant Terminal", layout="wide")
+st.set_page_config(page_title="Pro Quant Terminal", layout="wide")
 
-class PortfolioEngine:
-    """Klasa obsługująca logikę obliczeniową portfela."""
-    @staticmethod
-    @st.cache_data
-    def get_market_data(tickers, start):
-        return yf.download(tickers, start=start)['Close']
+# aktywa
+GPW = ["PKO.WA", "PKN.WA", "PZU.WA", "KGH.WA", "DNP.WA", "ALE.WA", "LPP.WA", "CDR.WA", "PEO.WA", "SPL.WA"]
+SP500_TOP = ["AAPL", "MSFT", "AMZN", "NVDA", "GOOGL", "META", "BRK-B", "LLY", "AVGO", "JPM", "TSLA"]
+ETFS = ["SPY", "QQQ", "GLD", "VGT", "EEM"]
 
-    @staticmethod
-    def optimize(data, rf_rate, strategy="Max Sharpe"):
-        mu = expected_returns.mean_historical_return(data)
-        S = risk_models.sample_cov(data)
-        ef = EfficientFrontier(mu, S)
-        
-        if strategy == "Max Sharpe":
-            weights = ef.max_sharpe(risk_free_rate=rf_rate)
-        else:
-            weights = ef.min_volatility()
-            
-        return ef.clean_weights(), ef.portfolio_performance(risk_free_rate=rf_rate)
+ALL_OPTIONS = sorted(list(set(GPW + SP500_TOP + ETFS)))
 
-# UI INTERFACE
+# bok
+st.sidebar.header("🕹️ Panel Sterowania")
+
+# cel liczenia
+st.sidebar.subheader("Cel Inwestycyjny")
+strategy = st.sidebar.radio(
+    "Wybierz strategię:",
+    ["Max Sharpe Ratio", "Minimum Volatility", "Target Return"]
+)
+
+target_return = 0
+if strategy == "Target Return":
+    target_return = st.sidebar.slider("Oczekiwany zwrot (%)", 5, 50, 15) / 100
+
+# parametry techniczne
+st.sidebar.divider()
+start_date = st.sidebar.date_input("Data początkowa", value=pd.to_datetime("2021-01-01"))
+risk_free_rate = st.sidebar.slider("Stopa wolna od ryzyka (%)", 0.0, 10.0, 2.0) / 100
+
+# Panel główny
 st.title("🏦 Pro Quant Asset Management Terminal")
 
-with st.sidebar:
-    st.header("Settings")
-    assets = st.multiselect("Assets", ["PKO.WA", "AAPL", "MSFT", "KGH.WA", "TSLA", "SPY"], default=["AAPL", "PKO.WA"])
-    strategy = st.selectbox("Strategy", ["Max Sharpe", "Min Volatility"])
-    rf = st.slider("Risk-Free Rate (%)", 0.0, 5.0, 2.0) / 100
-    run_btn = st.button("Compute Optimization", use_container_width=True)
+# Wybór akcji - Interaktywna lista na górze
+selected_assets = st.multiselect(
+    "Wybierz akcje do portfela (możesz wpisać własne tickery, np. TSLA):",
+    options=ALL_OPTIONS,
+    default=["PKO.WA", "AAPL", "MSFT", "CDR.WA"]
+)
 
-if run_btn and assets:
-    data = PortfolioEngine.get_market_data(assets, "2021-01-01")
-    w, perf = PortfolioEngine.optimize(data, rf, strategy)
-    
-    c1, c2 = st.columns([1, 2])
-    with c1:
-        st.metric("Expected Return", f"{perf[0]:.2%}")
-        st.metric("Volatility", f"{perf[1]:.2%}")
-        st.metric("Sharpe Ratio", f"{perf[2]:.2f}")
-    
-    with c2:
-        df_w = pd.DataFrame.from_dict(w, orient='index', columns=['Weight']).query("Weight > 0")
-        fig = px.pie(df_w, values='Weight', names=df_w.index, hole=0.4, template="plotly_dark")
-        st.plotly_chart(fig, use_container_width=True)
+# przycisk startu
+calculate = st.button("🚀 OBLICZ OPTYMALNY PORTFEL", use_container_width=True)
+
+if calculate and selected_assets:
+    with st.spinner('Pobieranie danych rynkowych...'):
+        try:
+            # pobieranie danych
+            data = yf.download(selected_assets, start=start_date)['Close']
+            
+            # obliczenia
+            mu = expected_returns.mean_historical_return(data)
+            S = risk_models.sample_cov(data)
+            ef = EfficientFrontier(mu, S)
+            
+            # wybor strategii
+            if strategy == "Max Sharpe Ratio":
+                weights = ef.max_sharpe(risk_free_rate=risk_free_rate)
+            elif strategy == "Minimum Volatility":
+                weights = ef.min_volatility()
+            else:
+                weights = ef.efficient_return(target_return=target_return)
+            
+            cleaned_weights = ef.clean_weights()
+            perf = ef.portfolio_performance(verbose=False, risk_free_rate=risk_free_rate)
+
+            # wizualizacja 
+            c1, c2 = st.columns([1, 2])
+            
+            with c1:
+                st.subheader("📋 Statystyki Strategii")
+                st.metric("Oczekiwany Zwrot", f"{perf[0]*100:.2f}%")
+                st.metric("Zmienność (Ryzyko)", f"{perf[1]*100:.2f}%")
+                st.metric("Sharpe Ratio", f"{perf[2]:.2f}")
+                
+                # Tabela wag
+                df_weights = pd.DataFrame.from_dict(cleaned_weights, orient='index', columns=['Waga'])
+                df_weights = df_weights[df_weights['Waga'] > 0]
+                st.dataframe(df_weights.style.format("{:.2%}"), use_container_width=True)
+
+            with c2:
+                st.subheader("🍩 Struktura Portfela")
+                fig = px.pie(
+                    names=df_weights.index, 
+                    values=df_weights['Waga'],
+                    hole=0.4,
+                    color_discrete_sequence=px.colors.sequential.RdBu
+                )
+                fig.update_layout(template="plotly_dark", margin=dict(l=20, r=20, t=20, b=20))
+                st.plotly_chart(fig, use_container_width=True)
+
+            # backtesting
+            st.divider()
+            st.subheader("📉 Historia wzrostu (Backtest)")
+            returns = data.pct_change().dropna()
+            port_ret = (returns * pd.Series(cleaned_weights)).sum(axis=1)
+            cum_ret = (1 + port_ret).cumprod()
+            st.line_chart(cum_ret)
+
+        except Exception as e:
+            st.error(f"Błąd modelu: {e}. Spróbuj dodać więcej danych lub zmienić datę.")
+else:
+    st.info("Dodaj aktywa i kliknij przycisk powyżej, aby zobaczyć analizę.")
