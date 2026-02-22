@@ -2,7 +2,7 @@
 
 An interactive analytical tool for constructing and evaluating investment portfolios based on **Modern Portfolio Theory** and advanced risk metrics.
 
-[👉 **Live Application Link**]([TU_WKLEJ_SWOJ_LINK_ZE_STREAMLIT](https://quant-portfolio-optimizer-gztfcpxfanog22mgvuyxz6.streamlit.app/))
+[👉 **Live Application Link**](https://quant-portfolio-optimizer-gztfcpxfanog22mgvuyxz6.streamlit.app/)
 
 ## 🛠 Core Modules
 * **Dynamic Asset Selection:** Real-time fetching of **S&P 500** components, **WIG20** stocks, and global **ETFs** via Yahoo Finance API.
