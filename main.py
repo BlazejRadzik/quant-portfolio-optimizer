@@ -4,13 +4,11 @@ import pandas as pd
 import plotly.express as px
 from pypfopt import EfficientFrontier, risk_models, expected_returns
 
-# --- 1. DEFINICJA PALETY BARW (Zgodnie z Twoim SS) ---
-# Od najciemniejszego burgundu przez czerwień po jasny krem
+# --- 1. DEFINICJA PALETY BARW (Bordo/Czerwień/Krem) ---
 FIRE_PALETTE = ["#4A0404", "#8B0000", "#B22222", "#E37222", "#E3AFBC", "#FDE2E4"]
 
 # --- 2. FUNKCJE POMOCNICZE ---
 def calculate_var(data, weights, alpha=0.05):
-    """Oblicza Historyczny Value at Risk (VaR 95%)."""
     portfolio_returns = (data.pct_change().dropna() * pd.Series(weights)).sum(axis=1)
     return portfolio_returns.quantile(alpha)
 
@@ -65,7 +63,7 @@ if calculate and selected_assets:
             perf = ef.portfolio_performance(verbose=False, risk_free_rate=rf_rate)
             var_value = calculate_var(data, w)
 
-            # --- SEKCJA WYNIKÓW (Nagłówki i emotki jak na SS) ---
+            # --- SEKCJA WYNIKÓW ---
             c1, c2 = st.columns([1, 2])
             
             with c1:
@@ -75,8 +73,9 @@ if calculate and selected_assets:
                 st.metric("Sharpe Ratio", f"{perf[2]:.2f}")
                 st.metric("Daily VaR (95%)", f"{var_value:.2%}")
                 
-                # Tabela wag
+                # --- POPRAWKA: SORTOWANIE TABELI WAG ---
                 df_w = pd.DataFrame.from_dict(w, orient='index', columns=['Waga']).query("Waga > 0")
+                df_w = df_w.sort_values(by='Waga', ascending=False) # Sortowanie malejąco
                 st.dataframe(df_w.style.format("{:.2%}"), use_container_width=True)
 
             with c2:
@@ -90,7 +89,7 @@ if calculate and selected_assets:
                 fig_pie.update_layout(margin=dict(l=20, r=20, t=20, b=20))
                 st.plotly_chart(fig_pie, use_container_width=True)
 
-            # --- BACKTESTING (Z suwakiem i latami na osi) ---
+            # --- BACKTESTING (CZERWONA LINIA I CZYSTY HOVER) ---
             st.divider()
             st.subheader("📉 Historia wzrostu (Backtest)")
             
@@ -98,14 +97,29 @@ if calculate and selected_assets:
             cum_ret = (1 + port_ret).cumprod()
 
             fig_bt = px.line(cum_ret, labels={'value': 'Kapitał', 'index': 'Oś czasu'})
+            
+            # Konfiguracja osi i wyglądu
+            fig_bt.update_traces(
+                line_color='#B22222', # Czerwona linia
+                hovertemplate="Kapitał: %{y:.2f}<extra></extra>" # Tylko kapitał na hoverze
+            )
+            
             fig_bt.update_xaxes(
                 dtick="M12", 
                 tickformat="%Y", 
                 rangeslider_visible=True,
                 gridcolor="rgba(255, 255, 255, 0.1)"
             )
-            fig_bt.update_layout(template="plotly_dark", hovermode="x unified")
-            st.plotly_chart(fig_bt, use_container_width=True)
+            
+            fig_bt.update_layout(
+                template="plotly_dark", 
+                hovermode="x unified",
+                xaxis_title="",
+                yaxis_title="Wartość"
+            )
+            
+            # Wyświetlenie bez paska narzędzi Plotly (aparat itp.)
+            st.plotly_chart(fig_bt, use_container_width=True, config={'displayModeBar': False})
 
         except Exception as e:
             st.error(f"Błąd modelu: {e}")
