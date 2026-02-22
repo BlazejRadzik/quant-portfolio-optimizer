@@ -5,103 +5,106 @@ import matplotlib.pyplot as plt
 from pypfopt import EfficientFrontier, risk_models, expected_returns
 import plotly.express as px
 
+# --- DEFINICJA PALETY KOLORÓW (Biel -> Bursztyn -> Czerwień -> Brąz) ---
+FIRE_PALETTE = [
+    "#FFFFFF", # Biel
+    "#FFC200", # Bursztyn/Złoty
+    "#FF8C00", # Ciemny pomarańcz
+    "#FF4500", # Pomarańczowo-czerwony
+    "#DC143C", # Karmazynowy
+    "#8B0000", # Ciemna czerwień
+    "#5D4037"  # Brąz
+]
+
+# --- 1. FUNKCJE POMOCNICZE ---
+@st.cache_data
+def get_sp500_tickers():
+    url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
+    table = pd.read_html(url)
+    return table[0]['Symbol'].tolist()
+
+def calculate_var(data, weights, alpha=0.05):
+    portfolio_returns = (data.pct_change().dropna() * pd.Series(weights)).sum(axis=1)
+    return portfolio_returns.quantile(alpha)
+
+# --- 2. KONFIGURACJA ---
 st.set_page_config(page_title="Pro Quant Terminal", layout="wide")
 
-# --- LISTY AKTYWÓW ---
 GPW = ["PKO.WA", "PKN.WA", "PZU.WA", "KGH.WA", "DNP.WA", "ALE.WA", "LPP.WA", "CDR.WA", "PEO.WA", "SPL.WA"]
-SP500_TOP = ["AAPL", "MSFT", "AMZN", "NVDA", "GOOGL", "META", "BRK-B", "LLY", "AVGO", "JPM", "TSLA"]
-ETFS = ["SPY", "QQQ", "GLD", "VGT", "EEM"]
+try:
+    SP500_DYNAMIC = get_sp500_tickers()
+except:
+    SP500_DYNAMIC = ["AAPL", "MSFT", "AMZN", "NVDA", "GOOGL"]
 
-ALL_OPTIONS = sorted(list(set(GPW + SP500_TOP + ETFS)))
+ALL_OPTIONS = sorted(list(set(GPW + SP500_DYNAMIC + ["SPY", "QQQ", "GLD"])))
 
-# --- SIDEBAR ---
+# Sidebar
 st.sidebar.header("🕹️ Panel Sterowania")
-
-# 1. Wybór celu optymalizacji
-st.sidebar.subheader("Cel Inwestycyjny")
-strategy = st.sidebar.radio(
-    "Wybierz strategię:",
-    ["Max Sharpe Ratio", "Minimum Volatility", "Target Return"]
-)
-
-target_return = 0
-if strategy == "Target Return":
-    target_return = st.sidebar.slider("Oczekiwany zwrot (%)", 5, 50, 15) / 100
-
-# 2. Parametry techniczne
-st.sidebar.divider()
+strategy = st.sidebar.radio("Strategia:", ["Max Sharpe Ratio", "Minimum Volatility", "Target Return"])
 start_date = st.sidebar.date_input("Data początkowa", value=pd.to_datetime("2021-01-01"))
-risk_free_rate = st.sidebar.slider("Stopa wolna od ryzyka (%)", 0.0, 10.0, 2.0) / 100
+rf_rate = st.sidebar.slider("Stopa wolna od ryzyka (%)", 0.0, 10.0, 2.0) / 100
 
-# --- PANEL GŁÓWNY ---
+# Panel główny
 st.title("🏦 Pro Quant Asset Management Terminal")
 
-# Wybór akcji - Interaktywna lista na górze
 selected_assets = st.multiselect(
-    "Wybierz akcje do portfela (możesz wpisać własne tickery, np. TSLA):",
+    "Wybierz akcje:",
     options=ALL_OPTIONS,
     default=["PKO.WA", "AAPL", "MSFT", "CDR.WA"]
 )
 
-# Przycisk startu
-calculate = st.button("🚀 OBLICZ OPTYMALNY PORTFEL", use_container_width=True)
-
-if calculate and selected_assets:
-    with st.spinner('Pobieranie danych rynkowych...'):
+if st.button("🚀 OBLICZ OPTYMALNY PORTFEL", use_container_width=True):
+    with st.spinner('Trwa analiza...'):
         try:
-            # Pobieranie danych
             data = yf.download(selected_assets, start=start_date)['Close']
-            
-            # Obliczenia
             mu = expected_returns.mean_historical_return(data)
             S = risk_models.sample_cov(data)
             ef = EfficientFrontier(mu, S)
             
-            # Logika wyboru strategii
             if strategy == "Max Sharpe Ratio":
-                weights = ef.max_sharpe(risk_free_rate=risk_free_rate)
+                weights = ef.max_sharpe(risk_free_rate=rf_rate)
             elif strategy == "Minimum Volatility":
                 weights = ef.min_volatility()
             else:
-                weights = ef.efficient_return(target_return=target_return)
+                weights = ef.efficient_return(target_return=0.15)
             
-            cleaned_weights = ef.clean_weights()
-            perf = ef.portfolio_performance(verbose=False, risk_free_rate=risk_free_rate)
+            w = ef.clean_weights()
+            perf = ef.portfolio_performance(verbose=False, risk_free_rate=rf_rate)
+            
+            # OBLICZENIE VAR
+            var_value = calculate_var(data, w)
 
-            # --- WIZUALIZACJA ---
-            c1, c2 = st.columns([1, 2])
+            # --- SEKCJA WYNIKÓW Z NOWĄ KOLORYSTYKĄ ---
+            c1, c2, c3 = st.columns(3) 
             
             with c1:
-                st.subheader("📋 Statystyki Strategii")
-                st.metric("Oczekiwany Zwrot", f"{perf[0]*100:.2f}%")
-                st.metric("Zmienność (Ryzyko)", f"{perf[1]*100:.2f}%")
-                st.metric("Sharpe Ratio", f"{perf[2]:.2f}")
+                # Używamy HTML, aby pokolorować tylko emotikonę na czerwono
+                st.markdown("### <span style='color:#FF4B4B'>📈</span> Performance", unsafe_allow_html=True)
+                st.metric("Oczekiwany Zwrot", f"{perf[0]:.2%}")
+                st.metric("Zmienność", f"{perf[1]:.2%}")
                 
-                # Tabela wag
-                df_weights = pd.DataFrame.from_dict(cleaned_weights, orient='index', columns=['Waga'])
-                df_weights = df_weights[df_weights['Waga'] > 0]
-                st.dataframe(df_weights.style.format("{:.2%}"), use_container_width=True)
-
             with c2:
-                st.subheader("🍩 Struktura Portfela")
+                # Czerwona tarcza
+                st.markdown("### <span style='color:#FF4B4B'>🛡️</span> Risk Management", unsafe_allow_html=True)
+                st.metric("Sharpe Ratio", f"{perf[2]:.2f}")
+                st.metric("Daily VaR (95%)", f"{var_value:.2%}", help="Max strata dzienna (95% ufności)")
+                
+            with c3:
+                st.subheader("🍩 Struktura")
+                df_w = pd.DataFrame.from_dict(w, orient='index', columns=['W']).query("W > 0")
                 fig = px.pie(
-                    names=df_weights.index, 
-                    values=df_weights['Waga'],
-                    hole=0.4,
-                    color_discrete_sequence=px.colors.sequential.RdBu
+                    df_w, names=df_w.index, values='W', hole=0.4, 
+                    template="plotly_dark",
+                    # ZASTOSOWANIE NOWEJ PALETY KOLORÓW
+                    color_discrete_sequence=FIRE_PALETTE
                 )
-                fig.update_layout(template="plotly_dark", margin=dict(l=20, r=20, t=20, b=20))
                 st.plotly_chart(fig, use_container_width=True)
 
-            # Backtesting
             st.divider()
             st.subheader("📉 Historia wzrostu (Backtest)")
-            returns = data.pct_change().dropna()
-            port_ret = (returns * pd.Series(cleaned_weights)).sum(axis=1)
-            cum_ret = (1 + port_ret).cumprod()
+            cum_ret = (1 + (data.pct_change().dropna() * pd.Series(w)).sum(axis=1)).cumprod()
+            # Ten wykres przyjmie domyślny kolor motywu Streamlit (zazwyczaj czerwony w trybie dark)
             st.line_chart(cum_ret)
 
         except Exception as e:
-            st.error(f"Błąd modelu: {e}. Spróbuj dodać więcej danych lub zmienić datę.")
-else:
-    st.info("Dodaj aktywa i kliknij przycisk powyżej, aby zobaczyć analizę.")
+            st.error(f"Błąd: {e}")
