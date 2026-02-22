@@ -4,10 +4,10 @@ import pandas as pd
 import plotly.express as px
 from pypfopt import EfficientFrontier, risk_models, expected_returns
 
-# --- 1. DEFINICJA PALETY BARW (Bordo/Czerwień/Krem) ---
+# Kolory
 FIRE_PALETTE = ["#4A0404", "#8B0000", "#B22222", "#E37222", "#E3AFBC", "#FDE2E4"]
 
-# --- 2. FUNKCJE POMOCNICZE ---
+# rep
 def calculate_var(data, weights, alpha=0.05):
     portfolio_returns = (data.pct_change().dropna() * pd.Series(weights)).sum(axis=1)
     return portfolio_returns.quantile(alpha)
@@ -17,7 +17,7 @@ def get_sp500_tickers():
     url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
     return pd.read_html(url)[0]['Symbol'].tolist()
 
-# --- 3. KONFIGURACJA STRONY ---
+# conf page
 st.set_page_config(page_title="Pro Quant Terminal", layout="wide")
 
 GPW = ["PKO.WA", "PKN.WA", "PZU.WA", "KGH.WA", "DNP.WA", "ALE.WA", "LPP.WA", "CDR.WA", "PEO.WA", "SPL.WA"]
@@ -28,7 +28,7 @@ except:
 
 ALL_OPTIONS = sorted(list(set(GPW + SP500_DYNAMIC + ["SPY", "QQQ", "GLD"])))
 
-# Sidebar
+# sidebar
 st.sidebar.header("🕹️ Panel Sterowania")
 strategy = st.sidebar.radio("Wybierz strategię:", ["Max Sharpe Ratio", "Minimum Volatility", "Target Return"])
 start_date = st.sidebar.date_input("Data początkowa", value=pd.to_datetime("2021-01-01"))
@@ -63,7 +63,7 @@ if calculate and selected_assets:
             perf = ef.portfolio_performance(verbose=False, risk_free_rate=rf_rate)
             var_value = calculate_var(data, w)
 
-            # --- SEKCJA WYNIKÓW ---
+            # wyniki
             c1, c2 = st.columns([1, 2])
             
             with c1:
@@ -73,7 +73,7 @@ if calculate and selected_assets:
                 st.metric("Sharpe Ratio", f"{perf[2]:.2f}")
                 st.metric("Daily VaR (95%)", f"{var_value:.2%}")
                 
-                # --- POPRAWKA: SORTOWANIE TABELI WAG ---
+                # sortowanie od naj do naj
                 df_w = pd.DataFrame.from_dict(w, orient='index', columns=['Waga']).query("Waga > 0")
                 df_w = df_w.sort_values(by='Waga', ascending=False) # Sortowanie malejąco
                 st.dataframe(df_w.style.format("{:.2%}"), use_container_width=True)
@@ -89,7 +89,7 @@ if calculate and selected_assets:
                 fig_pie.update_layout(margin=dict(l=20, r=20, t=20, b=20))
                 st.plotly_chart(fig_pie, use_container_width=True)
 
-            # --- BACKTESTING (CZERWONA LINIA I CZYSTY HOVER) ---
+            # backstage
             st.divider()
             st.subheader("📉 Historia wzrostu (Backtest)")
             
@@ -98,7 +98,7 @@ if calculate and selected_assets:
 
             fig_bt = px.line(cum_ret, labels={'value': 'Kapitał', 'index': 'Oś czasu'})
             
-            # Konfiguracja osi i wyglądu
+            # os i wyglad
             fig_bt.update_traces(
                 line_color='#B22222', # Czerwona linia
                 hovertemplate="Kapitał: %{y:.2f}<extra></extra>" # Tylko kapitał na hoverze
@@ -118,7 +118,7 @@ if calculate and selected_assets:
                 yaxis_title="Wartość"
             )
             
-            # Wyświetlenie bez paska narzędzi Plotly (aparat itp.)
+            # Wyświetlenie bez paska narzędzi Plotly
             st.plotly_chart(fig_bt, use_container_width=True, config={'displayModeBar': False})
 
         except Exception as e:
