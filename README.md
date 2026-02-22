@@ -1,1 +1,38 @@
-🏦 Quant Portfolio OptimizerAn interactive analytical tool for constructing and evaluating investment portfolios based on Markowitz's Modern Portfolio Theory and extreme risk metrics.👉 Live Application Link🛠 Core ModulesAsset Selection: Dynamic fetching of S&P 500 components, GPW (Warsaw Stock Exchange) stocks, and ETFs via the Yahoo Finance API.Optimization Engine: Implementation of Modern Portfolio Theory (MPT) utilizing the PyPortfolioOpt library to solve quadratic optimization problems.Risk Analytics: A dedicated module calculating historical Value at Risk (VaR) at a 95% confidence level.Backtesting: Historical performance simulation featuring an interactive timeline with annual year segregation.📈 MethodologyThe application is built upon three analytical pillars:1. Portfolio OptimizationThe model determines optimal asset weights ($\omega$) for three distinct scenarios:Max Sharpe Ratio: Maximizing excess return per unit of risk.Minimum Volatility: Minimizing the overall portfolio variance.Target Return: Optimizing for a specific investor-defined profit goal.$$SR = \frac{R_p - R_f}{\sigma_p}$$2. Value at Risk (VaR)Quantification of downside risk using the historical VaR (95%) model. This metric identifies the maximum expected daily loss that should not be exceeded with 95% probability.3. Visualization & Data StandardsStructure: Donut-style asset allocation chart using a sequential Burgundy-to-Cream palette for high-fidelity data density.Time Series: Interactive Plotly line charts featuring a red trendline and an integrated Range Slider for granular period analysis.Sorting: Weights in the data table are automatically sorted in descending order for immediate identification of core holdings.💻 Technical StackLanguage: Python 3.x.Quantitative Libraries: PyPortfolioOpt, Pandas, NumPy.Data Sourcing: yfinance (Real-time market data).Deployment/UI: Streamlit & Streamlit Cloud.Graphics: Plotly Express (Interactive charts).
+# 🏦 Institutional Quant Terminal
+
+An interactive analytical tool for constructing and evaluating investment portfolios based on **Modern Portfolio Theory** and advanced risk metrics.
+
+[👉 **Live Application Link**]([TU_WKLEJ_SWOJ_LINK_ZE_STREAMLIT](https://quant-portfolio-optimizer-gztfcpxfanog22mgvuyxz6.streamlit.app/))
+
+## 🛠 Core Modules
+* **Dynamic Asset Selection:** Real-time fetching of **S&P 500** components, **WIG20** stocks, and global **ETFs** via Yahoo Finance API.
+* **Optimization Engine:** Full implementation of Modern Portfolio Theory (MPT) using `PyPortfolioOpt` to solve convex optimization problems.
+* **Risk Analytics:** Integration of a historical **Value at Risk (VaR)** model at a 95% confidence level.
+* **Advanced Backtesting:** Historical performance simulation with yearly data segregation and interactive time-series analysis.
+
+## 📈 Quantitative Methodology
+
+### 1. Portfolio Optimization
+The system calculates optimal asset weights ($\omega$) across three primary objective functions:
+* **Max Sharpe Ratio:** Maximizing the risk-adjusted return.
+* **Minimum Volatility:** Constructing the portfolio with the lowest possible variance.
+* **Target Return:** Optimizing for a specific required rate of return.
+
+$$SR = \frac{R_p - R_f}{\sigma_p}$$
+
+### 2. Value at Risk (VaR)
+To quantify downside risk, the terminal estimates the **Daily VaR (95%)**. This metric represents the maximum expected loss over a one-day horizon that will not be exceeded with 95% certainty.
+
+
+
+### 3. Visualization Standards
+* **Portfolio Structure:** Custom donut chart using a sequential **Deep Red & Cream** palette for clear weight distribution.
+* **Sorted Holdings:** Asset weights are automatically sorted in **descending order** in the data table for immediate exposure analysis.
+* **Backtest Engine:** High-fidelity Plotly charts with a **red trendline**, annual x-axis ticks, and an integrated range slider for granular analysis.
+
+## 💻 Technical Stack
+* **Language:** Python 3.x
+* **Libraries:** `PyPortfolioOpt`, `Pandas`, `NumPy`
+* **Data Sourcing:** `yfinance`
+* **UI/Deployment:** `Streamlit` & `Streamlit Cloud`
+* **Visuals:** `Plotly Express`
